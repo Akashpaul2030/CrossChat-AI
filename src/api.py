@@ -60,6 +60,14 @@ async def process_message(request: MessageRequest):
     try:
         assistant = get_assistant(request.session_id)
         response = assistant.process_message(request.message)
+        
+        # Check if this is the first message in the conversation
+        conversation = assistant.get_conversation_history()
+        if len(conversation) <= 2:  # Just the current exchange (user + assistant)
+            # Generate a conversation name
+            conversation_name = assistant.generate_conversation_name(request.message, response)
+            assistant.set_conversation_name(conversation_name)
+            
         return {"response": response}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error processing message: {str(e)}")
@@ -88,7 +96,15 @@ async def list_sessions():
 async def get_session_info(session_id: str):
     try:
         assistant = get_assistant(session_id)
-        return assistant.get_session_info()
+        info = assistant.get_session_info()
+        
+        # Add conversation name if available
+        if hasattr(assistant, 'memory') and assistant.memory is not None:
+            name = assistant.memory.get_session_metadata("conversation_name")
+            if name:
+                info["conversation_name"] = name
+                
+        return info
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error getting session info: {str(e)}")
 

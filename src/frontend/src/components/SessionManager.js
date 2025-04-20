@@ -74,11 +74,34 @@ function SessionManager({ sessions, activeSession, onSessionChange, onNewSession
 
   useEffect(() => {
     // Generate readable names for sessions
-    const names = {};
-    sessions.forEach((sessionId, index) => {
-      names[sessionId] = `Conversation ${index + 1}`;
-    });
-    setSessionNames(names);
+    const fetchSessionNames = async () => {
+      const names = {};
+      
+      // Process each session to get its name
+      for (let i = 0; i < sessions.length; i++) {
+        const sessionId = sessions[i];
+        
+        try {
+          // Try to get the conversation name from the API
+          const response = await fetch(`http://localhost:8001/api/session/${sessionId}`);
+          const data = await response.json();
+          
+          if (data.conversation_name) {
+            names[sessionId] = data.conversation_name;
+          } else {
+            // Fallback if no name is available
+            names[sessionId] = `Conversation ${i + 1}`;
+          }
+        } catch (error) {
+          console.error(`Error fetching session info for ${sessionId}:`, error);
+          names[sessionId] = `Conversation ${i + 1}`;
+        }
+      }
+      
+      setSessionNames(names);
+    };
+    
+    fetchSessionNames();
   }, [sessions]);
 
   if (isLoading) {

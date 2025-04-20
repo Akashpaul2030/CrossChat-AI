@@ -233,8 +233,103 @@ class PersistentMemory:
         Returns:
             bool: True if successful, False otherwise
         """
-        self.messages = []
-        return self._save_memory()
+        try:
+            # Clear the in-memory list
+            self.messages = []
+            
+            # Try to save empty list to file
+            result = self._save_memory()
+            
+            # If saving fails, try to delete the file directly
+            if not result and os.path.exists(self.memory_file):
+                try:
+                    # On Windows, we might need to retry due to file locking
+                    for attempt in range(3):
+                        try:
+                            os.remove(self.memory_file)
+                            logger.info(f"Successfully deleted memory file: {self.memory_file}")
+                            return True
+                        except PermissionError:
+                            # Wait and retry if file is locked
+                            if attempt < 2:
+                                time.sleep(0.5)
+                            else:
+                                raise
+                except Exception as del_error:
+                    logger.error(f"Error deleting memory file: {str(del_error)}")
+                    return False
+            
+            return result
+        except Exception as e:
+            logger.error(f"Error clearing memory: {str(e)}")
+            return False
+    
+    def set_session_metadata(self, key: str, value: Any) -> bool:
+        """
+        Set metadata for the current session.
+        
+        Args:
+            key: Metadata key
+            value: Metadata value
+            
+        Returns:
+            bool: True if successful, False otherwise
+        """
+        try:
+            # Create a metadata file for this session
+            metadata_file = f"{self.memory_file}.metadata.json"
+            
+            # Load existing metadata if any
+            metadata = {}
+            if os.path.exists(metadata_file):
+                try:
+                    with open(metadata_file, 'r', encoding='utf-8') as f:
+                        metadata = json.load(f)
+                except Exception:
+                    # If file exists but can't be read, start fresh
+                    metadata = {}
+            
+            # Update metadata
+            metadata[key] = value
+            
+            # Save metadata
+            with open(metadata_file, 'w', encoding='utf-8') as f:
+                json.dump(metadata, f, indent=2, ensure_ascii=False)
+                
+            return True
+        except Exception as e:
+            logger.error(f"Error setting session metadata: {str(e)}")
+            return False
+            
+    def get_session_metadata(self, key: str = None) -> Any:
+        """
+        Get metadata for the current session.
+        
+        Args:
+            key: Optional specific metadata key to retrieve
+            
+        Returns:
+            Metadata value or dictionary of all metadata
+        """
+        try:
+            # Get the metadata file for this session
+            metadata_file = f"{self.memory_file}.metadata.json"
+            
+            # Return empty dict if file doesn't exist
+            if not os.path.exists(metadata_file):
+                return {} if key is None else None
+            
+            # Load metadata
+            with open(metadata_file, 'r', encoding='utf-8') as f:
+                metadata = json.load(f)
+            
+            # Return specific key or all metadata
+            if key is not None:
+                return metadata.get(key)
+            return metadata
+        except Exception as e:
+            logger.error(f"Error getting session metadata: {str(e)}")
+            return {} if key is None else None
     
     def get_session_info(self) -> Dict[str, Any]:
         """

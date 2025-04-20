@@ -410,6 +410,73 @@ class EnhancedLangChainAssistant:
             logger.error(f"Error clearing conversation: {str(e)}")
             return False
     
+    def generate_conversation_name(self, message: str, response: str) -> str:
+        """
+        Generate a meaningful name for the conversation based on the first exchange.
+        
+        Args:
+            message: The user's first message
+            response: The assistant's first response
+            
+        Returns:
+            Generated conversation name
+        """
+        try:
+            # Use a dedicated prompt to generate a short, descriptive name
+            prompt = f"""
+            Based on this conversation, generate a short, descriptive title (3-5 words):
+            
+            User: {message}
+            Assistant: {response}
+            
+            Title:
+            """
+            
+            # Create a compact prompt template for the naming task
+            naming_prompt = ChatPromptTemplate.from_template(prompt)
+            naming_model = ChatOpenAI(model="gpt-3.5-turbo", temperature=0.7)
+            naming_chain = naming_prompt | naming_model | StrOutputParser()
+            
+            # Generate the name
+            conversation_name = naming_chain.invoke({})
+            
+            # Clean up the name
+            conversation_name = conversation_name.strip()
+            
+            # Limit length (in case the model doesn't follow instructions)
+            if len(conversation_name) > 50:
+                conversation_name = conversation_name[:47] + "..."
+                
+            return conversation_name
+        except Exception as e:
+            # Fall back to a generic name if there's an error
+            logger.error(f"Error generating conversation name: {str(e)}")
+            return f"Conversation {self.session_id[:8]}"
+            
+    def set_conversation_name(self, name: str) -> bool:
+        """
+        Set the name for this conversation.
+        
+        Args:
+            name: The name to set
+            
+        Returns:
+            bool: True if successful, False otherwise
+        """
+        try:
+            # Store the name in the session info
+            session_info = self.get_session_info()
+            session_info["conversation_name"] = name
+            
+            # If we're using persistent memory, store it there
+            if hasattr(self, 'memory') and self.memory is not None:
+                self.memory.set_session_metadata("conversation_name", name)
+                
+            return True
+        except Exception as e:
+            logger.error(f"Error setting conversation name: {str(e)}")
+            return False
+    
     def get_session_info(self) -> Dict[str, Any]:
         """
         Get information about the current session.
